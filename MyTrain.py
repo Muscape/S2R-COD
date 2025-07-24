@@ -25,7 +25,7 @@ def trainer(source_loader, target_loader, model, ema_model, optimizer, epoch, op
         src_image, tar_weak_image, tar_strong_image = Variable(src_image).cuda(), Variable(tar_weak_image).cuda(),Variable(tar_strong_image).cuda()
         src_gt = Variable(src_gt).cuda()
 
-        if opt.backbone == 'SINet':
+        if opt.network == 'SINet':
             cam_sm, cam_im= model(src_image)
 
             with torch.no_grad():
@@ -39,7 +39,7 @@ def trainer(source_loader, target_loader, model, ema_model, optimizer, epoch, op
             loss_sup = loss_func(cam_sm, src_gt) + loss_func(cam_im, src_gt)
             loss_con = ES_Loss(stu_out, tea_out)
         
-        elif opt.backbone == 'SINet-v2':
+        elif opt.network == 'SINet-v2':
             preds = model(src_image)
             with torch.no_grad():
                 _, _, _, tea_out = ema_model(tar_weak_image)
@@ -52,7 +52,7 @@ def trainer(source_loader, target_loader, model, ema_model, optimizer, epoch, op
             loss_con = ES_Loss(stu_out, tea_out)
         
         else:
-            raise ValueError(f"Unsupported model type: {opt.backbone}")
+            raise ValueError(f"Unsupported model type: {opt.network}")
 
         loss_total = loss_sup + loss_con
 
@@ -81,11 +81,11 @@ def trainer(source_loader, target_loader, model, ema_model, optimizer, epoch, op
         torch.save(ema_model.state_dict(), save_path + 'Tea_%d.pth' % (epoch+1))
         torch.save(model.state_dict(), save_path + 'Stu_%d.pth' % (epoch + 1))
 
-    if (epoch+1) > 35 and opt.backbone == 'SINet':
+    if (epoch+1) > 35 and opt.network == 'SINet':
         torch.save(ema_model.state_dict(), save_path + 'Tea_%d.pth' % (epoch+1))
         torch.save(model.state_dict(), save_path + 'Stu_%d.pth' % (epoch + 1))
 
-def val(test_loader, ema_model, backbone, epoch, save_path):
+def val(test_loader, ema_model, network, epoch, save_path):
     """
     validation function
     """
@@ -99,9 +99,9 @@ def val(test_loader, ema_model, backbone, epoch, save_path):
             gt /= (gt.max() + 1e-8)
             image = image.cuda()
 
-            if backbone == 'SINet':
+            if network == 'SINet':
                 _, res = ema_model(image)
-            elif backbone == 'SINet-v2':
+            elif network == 'SINet-v2':
                 res_all = ema_model(image)
                 res = res_all[3]
 
@@ -123,7 +123,7 @@ def val(test_loader, ema_model, backbone, epoch, save_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--backbone', type=str, default='SINet', choices=['SINet', 'SINet-v2'], help='Select the backbone model architecture.')
+    parser.add_argument('--network', type=str, default='SINet', choices=['SINet', 'SINet-v2'], help='Select the model architecture.')
     parser.add_argument('--epoch', type=int, default=40, help='epoch number, default=40')
     parser.add_argument('--lr', type=float, default=1e-4, help='init learning rate, try `lr=1e-4`')
     parser.add_argument('--batchsize', type=int, default=16, help='training batch size (Note: ~500MB per img in GPU)')
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument('--b', type=float, default=0.3, help='EdgeAwareLoss hyperparameter b')
     parser.add_argument('--c', type=float, default=0.5, help='EdgeAwareLoss hyperparameter c')
     parser.add_argument('--save_model', type=str, default='./Snapshot/SINet/test/')
-    parser.add_argument('--source_root', type=str, default='./Dataset/Source/COD10K/')
+    parser.add_argument('--source_root', type=str, default='./Dataset/Source/CNC/')
     parser.add_argument('--target_root', type=str, default='./Dataset/Target/')
     parser.add_argument('--val_root', type=str, default='./Dataset/Val/CAMO/', help='the test rgb images root')
     opt = parser.parse_args()
@@ -167,11 +167,11 @@ if __name__ == "__main__":
         print(f"\n{'='*20} Iteration {i}/{opt.iteration} started {'='*20}\n")
 
         # Initialize student model and teacher model
-        if opt.backbone == 'SINet':
+        if opt.network == 'SINet':
             model = SINet_ResNet50(channel=32).cuda()
             model_ema = SINet_ResNet50(channel=32).cuda()
             clip_grad = False
-        elif opt.backbone == 'SINet-v2':
+        elif opt.network == 'SINet-v2':
             model = Network(channel=32).cuda()
             model_ema = Network(channel=32).cuda()
             opt.epoch = 100
@@ -179,8 +179,8 @@ if __name__ == "__main__":
             opt.decay_epoch = 50
             clip_grad = True
         else:
-            raise ValueError(f"Unsupported model type: {opt.backbone}")
-        print(f'[Info] Using backbone: {opt.backbone}')
+            raise ValueError(f"Unsupported model type: {opt.network}")
+        print(f'[Info] Using network: {opt.network}')
 
         for param_q, param_k in zip(model.parameters(), model_ema.parameters()):
             param_k.data.copy_(param_q.data)
@@ -227,9 +227,9 @@ if __name__ == "__main__":
                     opt=opt, loss_func=LogitsBCE, total_step=total_step, alpha=opt.alpha, log_file_path=log_file_path)
             if epoch_iter > 20:
                 val_loader.index = 0
-                val(test_loader=val_loader, ema_model=model_ema, backbone=opt.backbone, epoch=epoch_iter, save_path=opt.save_model)
+                val(test_loader=val_loader, ema_model=model_ema, network=opt.network, epoch=epoch_iter, save_path=opt.save_model)
 
         # Confident label selection
         if i < opt.iteration:
-            new_source_root = cls(opt.save_model, opt.source_root, opt.source_root, opt.target_root, PGT_Loss, opt.u, opt.tau, iteration=i, backbone=opt.backbone)
+            new_source_root = cls(opt.save_model, opt.source_root, opt.source_root, opt.target_root, PGT_Loss, opt.u, opt.tau, iteration=i, network=opt.network)
             opt.source_root = new_source_root

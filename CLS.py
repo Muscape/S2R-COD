@@ -9,7 +9,7 @@ from Src.model.SINet.SINet import SINet_ResNet50
 from Src.model.SINetV2.Network_Res2Net_GRA_NCD import Network
 from Src.utils.Dataloader import test_dataset
 
-def cls(model_path, source_root, gt_root, target_root, ES_loss, u, tau, iteration=1, testsize=352, dataset_name='COD10K', backbone='SINet'):
+def cls(model_path, source_root, gt_root, target_root, ES_loss, u, tau, iteration=1, testsize=352, dataset_name='COD10K', network='SINet'):
 
     # Copy source and GT directories to avoid overwriting
     source_copy_root = source_root.rstrip('/\\') + f'_iteration{iteration + 1}/'
@@ -36,18 +36,18 @@ def cls(model_path, source_root, gt_root, target_root, ES_loss, u, tau, iteratio
     os.makedirs(pgt_save_dir, exist_ok=True)
 
     # Load student and teacher models
-    if backbone == 'SINet':
+    if network == 'SINet':
         model = SINet_ResNet50().cuda()
         ema_model = SINet_ResNet50().cuda()
         stu_ckpt_name = 'Stu_40.pth'
         tea_fallback_path = os.path.join(model_path, 'Tea_40.pth')
-    elif backbone == 'SINet-v2':
+    elif network == 'SINet-v2':
         model = Network().cuda()
         ema_model = Network().cuda()
         stu_ckpt_name = 'Stu_100.pth'
         tea_fallback_path = os.path.join(model_path, 'Tea_100.pth')
     else:
-        raise NotImplementedError(f'Backbone {backbone} not supported.')
+        raise NotImplementedError(f'network {network} not supported.')
     
 
     model.load_state_dict(torch.load(os.path.join(model_path, stu_ckpt_name)))
@@ -77,10 +77,10 @@ def cls(model_path, source_root, gt_root, target_root, ES_loss, u, tau, iteratio
         image, name, original_image = test_loader.load_data()
         image = image.cuda()
 
-        if backbone == 'SINet':
+        if network == 'SINet':
             _, stu = model(image)
             _, tea = ema_model(image)
-        elif backbone == 'SINet-v2':
+        elif network == 'SINet-v2':
             stu_all = model(image)
             tea_all = ema_model(image)
             stu = stu_all[3]
@@ -108,10 +108,10 @@ def cls(model_path, source_root, gt_root, target_root, ES_loss, u, tau, iteratio
         image,  name, original_image = test_loader.load_data()
         image = image.cuda()
 
-        if backbone == 'SINet':
+        if network == 'SINet':
             _, stu = model(image)
             _, tea = ema_model(image)
-        elif backbone == 'SINet-v2':
+        elif network == 'SINet-v2':
             stu_all = model(image)
             tea_all = ema_model(image)
             stu = stu_all[3]
@@ -121,9 +121,9 @@ def cls(model_path, source_root, gt_root, target_root, ES_loss, u, tau, iteratio
 
         edge_loss = ES_loss(stu1, tea1)
         if edge_loss.item() < u * avg_loss:
-            if backbone == 'SINet':
+            if network == 'SINet':
                 _, cam = ema_model(image)
-            elif backbone == 'SINet-v2':
+            elif network == 'SINet-v2':
                 _, _, _, cam = ema_model(image)
             cam = F.interpolate(cam, size=(original_image.size[1], original_image.size[0]), mode='bilinear', align_corners=True)
             cam = cam.sigmoid().data.cpu().numpy().squeeze()

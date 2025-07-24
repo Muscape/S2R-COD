@@ -11,7 +11,7 @@ import cv2
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--backbone', type=str, default='SINet-v2', choices=['SINet', 'SINet-v2'], help='Select the backbone model architecture.')
+parser.add_argument('--network', type=str, default='SINet-v2', choices=['SINet', 'SINet-v2'], help='Select the model architecture.')
 parser.add_argument('--testsize', type=int, default=352, help='the snapshot input size')
 parser.add_argument('--model_path', type=str,
                     default='./Snapshot/SINet-v2/test/Tea_epoch_best.pth')
@@ -20,9 +20,9 @@ parser.add_argument('--test_save', type=str,
 opt = parser.parse_args()
 
 
-if opt.backbone == 'SINet':
+if opt.network == 'SINet':
     model = SINet_ResNet50().cuda()
-elif opt.backbone == 'SINet-v2':
+elif opt.network == 'SINet-v2':
     model = Network().cuda()
 model.load_state_dict(torch.load(opt.model_path))
 model.eval()
@@ -45,9 +45,9 @@ for dataset in ['COD10K']:
         gt /= (gt.max() + 1e-8)
         image = image.cuda()
         # inference
-        if opt.backbone == 'SINet':
+        if opt.network == 'SINet':
             _, cam = model(image)
-        elif opt.backbone == 'SINet-v2':
+        elif opt.network == 'SINet-v2':
             _, _, _, res2 = model(image)
             cam = res2
         # reshape and squeeze
